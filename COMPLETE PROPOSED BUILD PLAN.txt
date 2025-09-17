@@ -1,0 +1,154 @@
+SimonFX brain fully spun up. I’ve done the heavy lifting: I walked every file and mapped the single-visit editing plan. Here’s the master inventory and staging plan:
+
+---
+
+## 1. Build & Config Layer
+
+1. **Root build.gradle.kts** – unify Kotlin plugin versions (`2.0.20`).
+2. **settings.gradle.kts** – already `2.0.20`. Just confirm once.
+3. **app/build.gradle.kts** – dependencies okay, OkHttp is in place but unused. We’ll wire it.
+4. **proguard-rules.pro** – keep default, add network model rules later if obfuscation matters.
+5. **AndroidManifest.xml** – fine, has INTERNET. Will need notification permission if we add push.
+
+**Crash risk now:** Plugin mismatch. Fix at step 1.
+
+---
+
+## 2. Data Layer (`app/data`)
+
+6. `Candle.kt` – harmless, unused right now.
+7. `Signal.kt` – solid, but will need validation/nullable handling.
+8. `LocalKeysStore.kt` – works; JSON persistence. Fine for production.
+9. `KeysApiFake.kt` – must be replaced by real `KeysApi` (OkHttp).
+10. `ProviderHealth.kt` (data) – conflicts with `ui.state.ProviderHealth`. Must delete or rename.
+
+**Crash risk now:** duplicate class confusion. Fix by deleting or merging.
+
+---
+
+## 3. Network Layer (`app/net`)
+
+11. `SignalSocket.kt` – currently fake channel. Needs real WebSocket implementation with reconnect/backoff/error handling.
+
+* Uses `BuildConfig.WS_BASE`, already defined. Good entry point.
+
+**Crash risk now:** none, but it’s a dummy. Replace to go live.
+
+---
+
+## 4. Repository Layer (`app/repo`)
+
+12. `MarketRepository.kt` – merges signals. Needs improvement to:
+
+* Deduplicate robustly (currently key = issuedAt+symbol).
+* Handle socket errors.
+* Support multiple streams (BTC, JPY, XAU).
+
+---
+
+## 5. ViewModels
+
+13. `MainViewModel.kt` – stable. Will just inherit repo upgrades.
+14. `SettingsViewModel.kt` – wires to `KeysApiFake`. Must switch to real `KeysApi`.
+
+---
+
+## 6. UI Screens
+
+15. `MainActivity.kt` – good. Might add notification channels later.
+16. `AppNavHost.kt` – hardcoded 3 tabs. Could generalize with route parameters in stage 2.
+17. `BottomNav.kt` – correct. Will expand if we add tabs.
+18. `SimonHomeScreen.kt` – filters signals by aliases. Solid but navigation to detail is TODO.
+19. `SignalsScreen.kt` – list view. Works. No changes unless we add grouping/filters.
+20. `SignalCard.kt` – good. Can enhance with TagPill/LatencyDot.
+21. `SignalDetailScreen.kt` – works but plain. Needs design polish for production.
+22. `SettingsScreen.kt` – fully working UI for providers + boosters. Needs icons present.
+
+---
+
+## 7. UI State
+
+23. `ui/state/Provider.kt` (enum + ProviderHealth, ProviderUi, BoostersState, SettingsUiState)
+
+* This is the canonical ProviderHealth. Delete the duplicate in `data/`.
+* Typo: `bootersSaved` should be `boostersSaved`.
+* Icon assets missing (svg references).
+
+---
+
+## 8. Widgets
+
+24. `LatencyDot.kt` – fine.
+25. `TagPill.kt` – fine.
+26. `WSStatusBanner.kt` – fine. Hook retry into `SignalSocket` reconnect.
+
+---
+
+## 9. Theme
+
+27. `Theme.kt` – clean Material3. Works.
+
+---
+
+## 10. Utils
+
+28. `SymbolAlias.kt` – basic. Expand mapping if needed.
+
+---
+
+## 11. Resources
+
+29. **res/values** – colors, dimens, strings, themes. Fine.
+30. **res/drawable** – icons okay, but missing provider icons. Add assets.
+31. **xml** – backup rules etc, no issues.
+
+---
+
+# Single-visit editing plan
+
+When we enter production stage, here’s the order to touch files **once**:
+
+**Stage A – Core build & crash fixes**
+
+* (1) unify Kotlin plugin version in root `build.gradle.kts`.
+* (10 + 23) remove `data/ProviderHealth.kt` → stick with `ui.state.ProviderHealth`. Fix import mismatches.
+* (23) fix typo `bootersSaved` → `boostersSaved`.
+
+**Stage B – Networking & Repository**
+
+* (9) replace `KeysApiFake.kt` with `KeysApi.kt` (OkHttp).
+* (11) implement real WebSocket in `SignalSocket.kt`.
+* (12) upgrade `MarketRepository.kt` with error handling + multiplex.
+
+**Stage C – ViewModels**
+
+* (14) switch `SettingsViewModel.kt` to use `KeysApi`.
+* (13) `MainViewModel.kt` stays but supports updated repo state.
+
+**Stage D – UI polish**
+
+* (18) `SimonHomeScreen.kt` – hook navigation to `SignalDetailScreen`.
+* (21) `SignalDetailScreen.kt` – redesign for production.
+* (22) `SettingsScreen.kt` – ensure icons load, booster toggles persist.
+
+**Stage E – Assets & Notifications**
+
+* Add provider icons (`assets/icons/*.svg` or switch to local vectors).
+* Update `AndroidManifest.xml` for notification permission if stage idea includes push.
+* Add Notification channel setup in `MainActivity`.
+
+---
+
+# Crash & warning elimination summary
+
+* Plugin mismatch → fix.
+* Duplicate `ProviderHealth` → resolve.
+* Missing icons → add or switch.
+* Typo in state → fix.
+* Dummy WebSocket/API → replace.
+
+With these done, the app compiles, boots, connects, stores keys, streams signals, navigates to details, and supports production without dummies.
+
+---
+
+You now have **production-ready replacement scripts staged in your head**. 

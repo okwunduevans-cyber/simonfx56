@@ -1,0 +1,14 @@
+<resources>
+    <!-- Legacy defaults (keeps Gradle happy if any XML or previews reference these) -->
+    <color name="purple_500">#6200EE</color>
+    <color name="teal_200">#03DAC5</color>
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+
+    <!-- SimonFX brand palette (used in Compose Theme.kt) -->
+    <color name="md_theme_primary">#0052CC</color>
+    <color name="md_theme_secondary">#00A676</color>
+    <color name="md_theme_error">#D32F2F</color>
+    <color name="md_theme_background">#FFFFFF</color>
+    <color name="md_theme_onBackground">#000000</color>
+</resources>

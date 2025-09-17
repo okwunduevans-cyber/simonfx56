@@ -1,0 +1,16 @@
+<resources>
+    <!-- Base app theme -->
+    <style name="Theme.SimonFX" parent="Theme.Material3.DayNight">
+        <!-- Primary brand color -->
+        <item name="colorPrimary">@color/purple_500</item>
+        <item name="colorOnPrimary">@color/white</item>
+
+        <!-- Secondary accent color -->
+        <item name="colorSecondary">@color/teal_200</item>
+        <item name="colorOnSecondary">@color/black</item>
+
+        <!-- Background / surface overrides (optional, keeps Material3 defaults otherwise) -->
+        <item name="android:statusBarColor">@color/purple_500</item>
+        <item name="android:navigationBarColor">@color/md_theme_background</item>
+    </style>
+</resources>
