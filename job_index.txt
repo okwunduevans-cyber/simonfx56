@@ -1,0 +1,112 @@
+
+
+# Signal Stage Implementation Plan
+
+> **Gatekeeping Rule:** No new step shall be taken until the user has confirmed the application builds successfully (e.g., via `./gradlew assembleDebug`) at the end of each stage.
+
+Each stage below is intentionally scoped so that the project remains bootable and gradle-buildable after completion.
+
+## Stage 1 – Baseline Stabilization
+- **Goals:** Ensure the current project builds and runs with existing placeholder data while introducing feature flags for upcoming signal work.
+- **Scope:**
+  - Run a clean build and snapshot current behavior.
+  - Add a feature flag (e.g., `SignalStageEnabled`) in configuration.
+  - Document baseline environment requirements.
+- **Deliverables:** Updated documentation + feature flag scaffolding merged.
+- **Build Verification:** `./gradlew clean assembleDebug`
+- **User Confirmation Required:** ✅ Confirm build succeeds before advancing.
+
+## Stage 2 – Market Data Intake Foundation
+- **Goals:** Introduce Binance WebSocket/REST scaffolding while keeping outputs mocked so the app still boots without live keys.
+- **Scope:**
+  - Implement provider configuration entries (endpoints, credentials placeholders).
+  - Add Retrofit/OkHttp modules returning deterministic stub responses under the stage flag.
+  - Wire a background service to stream mock candles into a shared flow.
+- **Deliverables:** Data intake layer behind mocks; unit tests validating stream format.
+- **Build Verification:** `./gradlew assembleDebug`
+- **User Confirmation Required:** ✅ Confirm build before Stage 3.
+
+## Stage 3 – Normalization & Buffering Layer
+- **Goals:** Normalize raw provider candles into the internal `TradingCandle` format and buffer them safely.
+- **Scope:**
+  - Implement normalization adapters (timezone, volume units, instrument naming).
+  - Add a circular buffer/cache with replay support for downstream consumers.
+  - Backfill tests covering normalization edge cases.
+- **Deliverables:** Normalized candle pipeline with coverage.
+- **Build Verification:** `./gradlew assembleDebug`
+- **User Confirmation Required:** ✅ Confirm build before Stage 4.
+
+## Stage 4 – Indicator Engine Bootstrapping
+- **Goals:** Calculate deterministic indicators (EMA, RSI, ATR) from normalized candles.
+- **Scope:**
+  - Implement indicator calculators with coroutine-friendly APIs.
+  - Add configuration for indicator periods per instrument.
+  - Provide preview data so UI cards can show indicator snapshots.
+- **Deliverables:** Indicator modules + unit tests on historical fixtures.
+- **Build Verification:** `./gradlew assembleDebug`
+- **User Confirmation Required:** ✅ Confirm build before Stage 5.
+
+## Stage 5 – Rule Engine & Signal Packaging
+- **Goals:** Convert indicator outputs into `TradingSignal` objects with confidence and risk metrics.
+- **Scope:**
+  - Implement rule evaluation (trend confirmation, volume filters, risk/reward computation).
+  - Map rule results into the canonical `TradingSignal` model.
+  - Persist generated signals to an in-memory repository for UI inspection.
+- **Deliverables:** Deterministic rule engine with reproducible fixtures.
+- **Build Verification:** `./gradlew assembleDebug`
+- **User Confirmation Required:** ✅ Confirm build before Stage 6.
+
+## Stage 6 – Persistence & Lifecycle Safety
+- **Goals:** Persist signals and related metadata locally to survive process death while retaining bootability.
+- **Scope:**
+  - Introduce Room database (or equivalent) schema for signals & telemetry.
+  - Implement migration from in-memory store to persistent storage.
+  - Add repository tests covering save/restore on app restart.
+- **Deliverables:** Stable persistence layer with migration scripts.
+- **Build Verification:** `./gradlew assembleDebug`
+- **User Confirmation Required:** ✅ Confirm build before Stage 7.
+
+## Stage 7 – UI Signal Surfacing
+- **Goals:** Present live signals, countdown timers, and statuses in Compose without breaking existing navigation.
+- **Scope:**
+  - Connect view models to the repository + flows.
+  - Render signal list/detail screens with deterministic preview data in the absence of live feeds.
+  - Display countdown timers via `MarketTimer` integration.
+- **Deliverables:** Bootable UI screens reflecting staged data.
+- **Build Verification:** `./gradlew assembleDebug`
+- **User Confirmation Required:** ✅ Confirm build before Stage 8.
+
+## Stage 8 – Settings, Health, & Boosters
+- **Goals:** Wire provider health, latency dots, and booster toggles into the settings experience.
+- **Scope:**
+  - Persist boosters and API keys securely (per encryption task).
+  - Surface provider health metrics sourced from dispatcher telemetry.
+  - Add manual test hooks (ping provider, rotate key) for QA.
+- **Deliverables:** Fully interactive settings tied to the signal stack.
+- **Build Verification:** `./gradlew assembleDebug`
+- **User Confirmation Required:** ✅ Confirm build before Stage 9.
+
+## Stage 9 – AI Commentary & Automation Hooks
+- **Goals:** Attach AI commentary to signals and expose actionable commands.
+- **Scope:**
+  - Integrate `SignalAIEngine` with fallback mocks when keys absent.
+  - Append AI-generated commentary/commands to signal detail view.
+  - Add load tests ensuring AI responses keep up with signal volume.
+- **Deliverables:** AI-enhanced signals with test coverage.
+- **Build Verification:** `./gradlew assembleDebug`
+- **User Confirmation Required:** ✅ Confirm build before Stage 10.
+
+## Stage 10 – Multi-Provider Fan-In & Production Hardening
+- **Goals:** Enable additional providers, orchestration, and failover with full QA.
+- **Scope:**
+  - Onboard supplementary providers (Gemini, Finage) via the normalization layer.
+  - Implement Smart API Booster rotation and auto-reconnect strategies.
+  - Run end-to-end scenario tests (cold boot, provider failover, AI load).
+- **Deliverables:** Production-ready multi-provider signal stage.
+- **Build Verification:** `./gradlew assembleDebug` + end-to-end QA scripts.
+- **User Confirmation Required:** ✅ Final build confirmation required before declaring completion.
+
+---
+
+📦 **Download Tip:** This plan lives at `signal-stage-plan.md`; download it directly from the repository or via `curl`/`wget` after syncing your workspace.
+
