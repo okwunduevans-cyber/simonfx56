@@ -1,0 +1,70 @@
+import json
+import time
+from datetime import datetime
+from btc_bot import BTCBot
+from usdjpy_bot import USDJPYBot
+from usdaud_bot import USDAUDBot
+
+
+def fetch_all_signals(oanda_token, oanda_account):
+    signals = []
+
+    # --- BTCUSD (Binance) ---
+    try:
+        btc_bot = BTCBot()
+        btc_df = btc_bot.fetch_data("15m", 300)
+        btc_signal = btc_bot.generate_signal(btc_df)
+        signals.append(btc_signal)
+    except Exception as e:
+        print(f"[BTCUSD ERROR] {e}")
+
+    # --- USDJPY (OANDA) ---
+    try:
+        jpy_bot = USDJPYBot(oanda_token, oanda_account)
+        jpy_df = jpy_bot.fetch_data("15m", 300)
+        jpy_signal = jpy_bot.generate_signal(jpy_df)
+        signals.append(jpy_signal)
+    except Exception as e:
+        print(f"[USDJPY ERROR] {e}")
+
+    # --- USDAUD (OANDA) ---
+    try:
+        aud_bot = USDAUDBot(oanda_token, oanda_account)
+        aud_df = aud_bot.fetch_data("15m", 300)
+        aud_signal = aud_bot.generate_signal(aud_df)
+        signals.append(aud_signal)
+    except Exception as e:
+        print(f"[USDAUD ERROR] {e}")
+
+    return signals
+
+
+def run_scheduler(interval_minutes=15):
+    # ⚠️ Insert your OANDA credentials here
+    OANDA_TOKEN = "YOUR_OANDA_API_KEY"
+    OANDA_ACCOUNT = "YOUR_OANDA_ACCOUNT_ID"
+
+    while True:
+        print(f"\n====== SIGNAL SCAN @ {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')} ======")
+
+        signals = fetch_all_signals(OANDA_TOKEN, OANDA_ACCOUNT)
+
+        # --- Print results ---
+        for sig in signals:
+            print(json.dumps(sig, indent=2))
+
+        # --- Append to log ---
+        with open("signals_log.json", "a") as f:
+            for sig in signals:
+                f.write(json.dumps(sig) + "\n")
+
+        print(f"Next scan in {interval_minutes} minutes...")
+        time.sleep(interval_minutes * 60)
+
+
+if __name__ == "__main__":
+    run_scheduler(interval_minutes=15)
+
+
+
+

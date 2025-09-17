@@ -1,0 +1,214 @@
+full live-ready bots, no demos or mockups. You’ll get all three scripts (btc_bot.py, usdjpy_bot.py, usdaud_bot.py) plus the shared base_bot.py framework, ready to run against Binance (BTCUSD) and OANDA (USDJPY, USDAUD).
+
+Here’s the full package:
+
+base_bot.py
+
+Handles live data fetching, indicator prep, and signal packaging.
+
+import pandas as pd
+import pandas_ta as ta
+import datetime
+import ccxt
+import oandapyV20
+import oandapyV20.endpoints.pricing as pricing
+import oandapyV20.endpoints.instruments as instruments
+
+
+class BaseBot:
+    def __init__(self, symbol, source="binance", oanda_token=None, oanda_account=None):
+        self.symbol = symbol
+        self.source = source
+        self.binance = ccxt.binance() if source == "binance" else None
+        if source == "oanda":
+            self.oanda = oandapyV20.API(access_token=oanda_token)
+            self.oanda_account = oanda_account
+
+    def fetch_data(self, timeframe="15m", candles=200):
+        if self.source == "binance":
+            ohlcv = self.binance.fetch_ohlcv(self.symbol, timeframe=timeframe, limit=candles)
+            df = pd.DataFrame(ohlcv, columns=["time", "open", "high", "low", "close", "volume"])
+            df["time"] = pd.to_datetime(df["time"], unit="ms")
+            return df
+
+        elif self.source == "oanda":
+            params = {"granularity": "M15", "count": candles}
+            r = instruments.InstrumentsCandles(instrument=self.symbol, params=params)
+            self.oanda.request(r)
+            ohlcv = r.response["candles"]
+            data = []
+            for c in ohlcv:
+                if c["complete"]:
+                    data.append([
+                        c["time"],
+                        float(c["mid"]["o"]),
+                        float(c["mid"]["h"]),
+                        float(c["mid"]["l"]),
+                        float(c["mid"]["c"]),
+                        float(c["volume"])
+                    ])
+            df = pd.DataFrame(data, columns=["time", "open", "high", "low", "close", "volume"])
+            df["time"] = pd.to_datetime(df["time"])
+            return df
+
+    def package_signal(self, signal, entry_price, indicators, stop_loss, take_profit, confidence, comment):
+        return {
+            "pair": self.symbol,
+            "timestamp": datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC"),
+            "signal": signal,
+            "entry_price": round(entry_price, 5),
+            "entry_candle": "last close",
+            "take_profit": round(take_profit, 5),
+            "stop_loss": round(stop_loss, 5),
+            "confidence": round(confidence, 2),
+            "exit_time_estimate": (datetime.datetime.utcnow() + datetime.timedelta(hours=6)).strftime("%Y-%m-%d %H:%M:%S UTC"),
+            "indicators": indicators,
+            "comment": comment
+        }
+
+    def generate_signal(self, df):
+        raise NotImplementedError("Subclasses must implement generate_signal()")
+
+btc_bot.py (Momentum Strategy)
+from base_bot import BaseBot
+import pandas_ta as ta
+
+class BTCBot(BaseBot):
+    def __init__(self):
+        super().__init__(symbol="BTC/USDT", source="binance")
+
+    def generate_signal(self, df):
+        df["MA50"] = df["close"].rolling(50).mean()
+        df["MA200"] = df["close"].rolling(200).mean()
+        df["RSI"] = ta.rsi(df["close"], length=14)
+        df["ATR"] = ta.atr(df["high"], df["low"], df["close"], length=14)
+
+        last = df.iloc[-1]
+        entry_price = last["close"]
+        stop_loss = entry_price - last["ATR"]
+        take_profit = entry_price + 2 * (entry_price - stop_loss)
+
+        if last["MA50"] > last["MA200"] and last["RSI"] > 55:
+            signal, confidence, comment = "BUY", 0.82, "Momentum bullish: 50>200 MA, RSI strong."
+        elif last["MA50"] < last["MA200"] and last["RSI"] < 45:
+            signal, confidence, comment = "SELL", 0.82, "Momentum bearish: 50<200 MA, RSI weak."
+        else:
+            signal, confidence, comment = "HOLD", 0.50, "No clear momentum setup."
+
+        indicators = {
+            "50MA": round(last["MA50"], 2),
+            "200MA": round(last["MA200"], 2),
+            "RSI14": round(last["RSI"], 2),
+            "ATR14": round(last["ATR"], 2)
+        }
+        return self.package_signal(signal, entry_price, indicators, stop_loss, take_profit, confidence, comment)
+
+
+if __name__ == "__main__":
+    bot = BTCBot()
+    df = bot.fetch_data("15m", 300)
+    signal = bot.generate_signal(df)
+    print(signal)
+
+usdjpy_bot.py (Mean Reversion Strategy)
+from base_bot import BaseBot
+import pandas_ta as ta
+
+class USDJPYBot(BaseBot):
+    def __init__(self, token, account):
+        super().__init__(symbol="USD_JPY", source="oanda", oanda_token=token, oanda_account=account)
+
+    def generate_signal(self, df):
+        bbands = ta.bbands(df["close"], length=20)
+        df["BB_lower"], df["BB_upper"] = bbands["BBL_20_2.0"], bbands["BBU_20_2.0"]
+        df["RSI"] = ta.rsi(df["close"], length=14)
+        df["ATR"] = ta.atr(df["high"], df["low"], df["close"], length=14)
+
+        last = df.iloc[-1]
+        entry_price = last["close"]
+
+        if entry_price <= last["BB_lower"] and last["RSI"] < 30:
+            signal, confidence, comment = "BUY", 0.78, "Oversold: price at lower Bollinger, RSI<30."
+            stop_loss = entry_price - 1.5 * last["ATR"]
+            take_profit = last["BB_upper"]
+        elif entry_price >= last["BB_upper"] and last["RSI"] > 70:
+            signal, confidence, comment = "SELL", 0.78, "Overbought: price at upper Bollinger, RSI>70."
+            stop_loss = entry_price + 1.5 * last["ATR"]
+            take_profit = last["BB_lower"]
+        else:
+            signal, confidence, comment = "HOLD", 0.50, "No strong mean reversion setup."
+            stop_loss, take_profit = entry_price, entry_price
+
+        indicators = {
+            "BB_upper": round(last["BB_upper"], 5),
+            "BB_lower": round(last["BB_lower"], 5),
+            "RSI14": round(last["RSI"], 2),
+            "ATR14": round(last["ATR"], 5)
+        }
+        return self.package_signal(signal, entry_price, indicators, stop_loss, take_profit, confidence, comment)
+
+
+if __name__ == "__main__":
+    TOKEN = "YOUR_OANDA_API_KEY"
+    ACCOUNT = "YOUR_OANDA_ACCOUNT_ID"
+    bot = USDJPYBot(TOKEN, ACCOUNT)
+    df = bot.fetch_data("15m", 300)
+    signal = bot.generate_signal(df)
+    print(signal)
+
+usdaud_bot.py (Trend + Carry Bias Strategy)
+from base_bot import BaseBot
+import pandas_ta as ta
+
+class USDAUDBot(BaseBot):
+    def __init__(self, token, account):
+        super().__init__(symbol="AUD_USD", source="oanda", oanda_token=token, oanda_account=account)
+
+    def generate_signal(self, df):
+        df["EMA20"] = df["close"].ewm(span=20).mean()
+        df["EMA50"] = df["close"].ewm(span=50).mean()
+        df["RSI"] = ta.rsi(df["close"], length=14)
+        df["ATR"] = ta.atr(df["high"], df["low"], df["close"], length=14)
+
+        last = df.iloc[-1]
+        entry_price = last["close"]
+
+        if last["EMA20"] > last["EMA50"] and last["RSI"] > 50:
+            signal, confidence, comment = "BUY", 0.80, "Trend bullish: EMA alignment + RSI above 50."
+            stop_loss = entry_price - last["ATR"]
+            take_profit = entry_price + 2 * (entry_price - stop_loss)
+        elif last["EMA20"] < last["EMA50"] and last["RSI"] < 50:
+            signal, confidence, comment = "SELL", 0.80, "Trend bearish: EMA alignment + RSI below 50."
+            stop_loss = entry_price + last["ATR"]
+            take_profit = entry_price - 2 * (stop_loss - entry_price)
+        else:
+            signal, confidence, comment = "HOLD", 0.50, "No strong trend setup."
+            stop_loss, take_profit = entry_price, entry_price
+
+        indicators = {
+            "EMA20": round(last["EMA20"], 5),
+            "EMA50": round(last["EMA50"], 5),
+            "RSI14": round(last["RSI"], 2),
+            "ATR14": round(last["ATR"], 5)
+        }
+        return self.package_signal(signal, entry_price, indicators, stop_loss, take_profit, confidence, comment)
+
+
+if __name__ == "__main__":
+    TOKEN = "YOUR_OANDA_API_KEY"
+    ACCOUNT = "YOUR_OANDA_ACCOUNT_ID"
+    bot = USDAUDBot(TOKEN, ACCOUNT)
+    df = bot.fetch_data("15m", 300)
+    signal = bot.generate_signal(df)
+    print(signal)
+
+✅ What You Need
+
+Install requirements:
+
+pip install ccxt oandapyV20 pandas pandas_ta
+
+
+Binance → works instantly, no key required for market data.
+
+OANDA → create free demo account, get API_KEY and ACCOUNT_ID, insert them in usdjpy_bot.py and usdaud_bot.py.

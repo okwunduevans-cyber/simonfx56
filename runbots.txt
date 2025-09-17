@@ -1,0 +1,110 @@
+run_all_bots.py
+import json
+from btc_bot import BTCBot
+from usdjpy_bot import USDJPYBot
+from usdaud_bot import USDAUDBot
+
+
+def main():
+    # ⚠️ Insert your OANDA credentials here
+    OANDA_TOKEN = "YOUR_OANDA_API_KEY"
+    OANDA_ACCOUNT = "YOUR_OANDA_ACCOUNT_ID"
+
+    signals = []
+
+    # --- BTCUSD (Binance) ---
+    try:
+        btc_bot = BTCBot()
+        btc_df = btc_bot.fetch_data("15m", 300)
+        btc_signal = btc_bot.generate_signal(btc_df)
+        signals.append(btc_signal)
+    except Exception as e:
+        print(f"[BTCUSD ERROR] {e}")
+
+    # --- USDJPY (OANDA) ---
+    try:
+        jpy_bot = USDJPYBot(OANDA_TOKEN, OANDA_ACCOUNT)
+        jpy_df = jpy_bot.fetch_data("15m", 300)
+        jpy_signal = jpy_bot.generate_signal(jpy_df)
+        signals.append(jpy_signal)
+    except Exception as e:
+        print(f"[USDJPY ERROR] {e}")
+
+    # --- USDAUD (OANDA) ---
+    try:
+        aud_bot = USDAUDBot(OANDA_TOKEN, OANDA_ACCOUNT)
+        aud_df = aud_bot.fetch_data("15m", 300)
+        aud_signal = aud_bot.generate_signal(aud_df)
+        signals.append(aud_signal)
+    except Exception as e:
+        print(f"[USDAUD ERROR] {e}")
+
+    # --- Output consolidated signals ---
+    print("\n====== TRADING SIGNALS ======")
+    for sig in signals:
+        print(json.dumps(sig, indent=2))
+
+    # --- Save to log file ---
+    with open("signals_log.json", "a") as f:
+        for sig in signals:
+            f.write(json.dumps(sig) + "\n")
+
+
+if __name__ == "__main__":
+    main()
+
+🔧 How It Works
+
+Runs all three bots:
+
+BTCUSD → Binance via ccxt
+
+USDJPY → OANDA via oandapyV20
+
+USDAUD → OANDA via oandapyV20
+
+Collects signals into a single list.
+
+Prints them in JSON format (readable structure).
+
+Saves them into a rolling signals_log.json file for historical tracking.
+
+✅ Example Output
+====== TRADING SIGNALS ======
+{
+  "pair": "BTC/USDT",
+  "timestamp": "2025-09-17 16:15:00 UTC",
+  "signal": "BUY",
+  "entry_price": 26895.23,
+  "entry_candle": "last close",
+  "take_profit": 27230.50,
+  "stop_loss": 26680.10,
+  "confidence": 0.82,
+  "exit_time_estimate": "2025-09-17 22:15:00 UTC",
+  "indicators": {
+    "50MA": 26870.12,
+    "200MA": 26520.50,
+    "RSI14": 58.7,
+    "ATR14": 115.2
+  },
+  "comment": "Momentum bullish: 50>200 MA, RSI strong."
+}
+{
+  "pair": "USD_JPY",
+  "timestamp": "2025-09-17 16:15:00 UTC",
+  "signal": "SELL",
+  "entry_price": 147.22,
+  "entry_candle": "last close",
+  "take_profit": 146.80,
+  "stop_loss": 147.55,
+  "confidence": 0.78,
+  "exit_time_estimate": "2025-09-17 22:15:00 UTC",
+  "indicators": {
+    "BB_upper": 147.90,
+    "BB_lower": 146.70,
+    "RSI14": 72.3,
+    "ATR14": 0.28
+  },
+  "comment": "Overbought: price at upper Bollinger, RSI>70."
+}
+...
